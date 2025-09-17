@@ -9,10 +9,13 @@ from fastapi import (
     FastAPI, APIRouter, Depends, HTTPException, status,
     WebSocket, WebSocketDisconnect, Request
 )
-from fastapi.responses import RedirectResponse, FileResponse
+from fastapi.responses import RedirectResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from pydantic import BaseModel
+
+class GuestLoginRequest(BaseModel):
+    guest_id: str
 
 from . import auth, game_logic, state_manager, security
 from .websocket_manager import manager as websocket_manager
@@ -56,6 +59,27 @@ async def login_linuxdo(request: Request):
     # This must match the URL registered in your Linux.do OAuth application settings.
     redirect_uri = str(request.url.replace(path="/callback"))
     return await auth.oauth.linuxdo.authorize_redirect(request, redirect_uri)
+
+@api_router.post("/login/guest")
+async def login_guest(guest_request: GuestLoginRequest):
+    """
+    Logs in a guest user by creating a JWT for their client-generated ID.
+    """
+    guest_id = guest_request.guest_id
+    # Create a JWT for the guest user
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    jwt_payload = {
+        "sub": guest_id,
+        "id": guest_id,
+        "name": f"游客-{guest_id[:8]}", # Create a guest-style name
+        "trust_level": 0, # Guests have a default trust level
+    }
+    access_token = auth.create_access_token(
+        data=jwt_payload, expires_delta=access_token_expires
+    )
+
+    # Return the token in the response body, for the client to handle.
+    return {"access_token": access_token}
 
 @root_router.get('/callback')
 async def auth_linuxdo_callback(request: Request):

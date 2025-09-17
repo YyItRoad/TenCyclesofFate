@@ -11,6 +11,7 @@ const DOMElements = {
     loginView: document.getElementById('login-view'),
     gameView: document.getElementById('game-view'),
     loginError: document.getElementById('login-error'),
+    guestLoginButton: document.getElementById('guest-login-button'),
     logoutButton: document.getElementById('logout-button'),
     narrativeWindow: document.getElementById('narrative-window'),
     characterStatus: document.getElementById('character-status'),
@@ -43,7 +44,23 @@ const api = {
     },
     async logout() {
         await fetch(`${API_BASE_URL}/logout`, { method: 'POST' });
+        // Manually redirect after the backend has cleared the cookie
         window.location.href = '/';
+    },
+    async loginAsGuest(guestId) {
+        const response = await fetch(`${API_BASE_URL}/login/guest`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ guest_id: guestId })
+        });
+        if (!response.ok) throw new Error('Failed to login as guest');
+        const data = await response.json();
+        // Manually set the cookie with the token from the response
+        document.cookie = `token=${data.access_token}; path=/; SameSite=Lax;`;
+        // Reload the page to initialize the game with the new cookie
+        window.location.reload();
     }
 };
 
@@ -250,6 +267,22 @@ function handleAction(actionOverride = null) {
 }
 
 // --- Initialization ---
+async function handleGuestLogin() {
+    showLoading(true);
+    try {
+        let guestId = localStorage.getItem('guest_id');
+        if (!guestId) {
+            guestId = crypto.randomUUID();
+            localStorage.setItem('guest_id', guestId);
+        }
+        await api.loginAsGuest(guestId);
+    } catch (error) {
+        console.error("Guest login failed:", error);
+        DOMElements.loginError.textContent = '游客登录失败，请重试。';
+        showLoading(false);
+    }
+}
+
 async function initializeGame() {
     showLoading(true);
     try {
@@ -261,7 +294,6 @@ async function initializeGame() {
         console.log("Initialization complete and WebSocket is ready.");
     } catch (error) {
         // If init fails (e.g. no valid cookie), just show the login view.
-        // The api.initGame function no longer redirects, it just throws an error.
         showView('login-view');
         if (error.message !== 'Unauthorized') {
              console.error(`Session initialization failed: ${error.message}`);
@@ -273,12 +305,12 @@ async function initializeGame() {
 }
 
 function init() {
-    // Always try to initialize the game on page load.
-    // If the user is logged in, it will show the game view.
-    // If not, the catch block in initializeGame will handle showing the login view.
+    // Try to initialize the game on page load. If the user has a valid cookie,
+    // it will show the game view. Otherwise, it will show the login view.
     initializeGame();
 
-    // Setup event listeners regardless of initial view
+    // Setup event listeners
+    DOMElements.guestLoginButton.addEventListener('click', handleGuestLogin);
     DOMElements.logoutButton.addEventListener('click', handleLogout);
     DOMElements.actionButton.addEventListener('click', () => handleAction());
     DOMElements.actionInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleAction(); });
