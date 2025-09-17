@@ -39,8 +39,10 @@ jobs:
           # 上游（原项目）的仓库地址
           # 将 'original-owner/original-repo' 替换为实际的上游仓库
           upstream_repo: 'CassiopeiaCode/TenCyclesofFate'
-          # 要同步的分支
-          branch: 'main'
+          # 你的 fork 仓库中要被更新的分支
+          target_branch: 'master'
+          # 上游（原项目）中要同步的分支
+          branch: 'master'
           # 同步策略，可以是 merge 或 rebase，默认为 merge
           sync_method: 'merge'
           # Git 用户名和邮箱
