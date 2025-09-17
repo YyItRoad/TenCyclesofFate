@@ -1,0 +1,57 @@
+# 工作流名称
+name: Sync Upstream
+
+# 触发条件
+on:
+  # 允许手动在 Actions 页面触发此工作流
+  workflow_dispatch:
+  
+  # 定时任务，使用 cron 表达式
+  # 以下示例表示每小时的第0分钟执行一次（即每小时执行一次）
+  # 你可以根据需求修改 cron 表达式
+  schedule:
+    - cron: '0 1 * * *'
+
+# 任务定义
+jobs:
+  sync:
+    # 运行环境
+    runs-on: ubuntu-latest
+    
+    # 任务步骤
+    steps:
+      # 第一步：检出你的 fork 仓库代码
+      # 使用 persist-credentials: false 是为了下一步可以正确配置 git 用户
+      - name: Checkout Fork
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          # 需要获取所有历史记录，以便进行 rebase 或 merge
+          fetch-depth: 0
+
+      # 第二步：将原项目（upstream）的变更同步到你的 fork 仓库
+      - name: Sync Upstream Repository
+        id: sync
+        uses: aormsby/fork-sync-with-upstream-action@v3.4
+        with:
+          # 你的 fork 仓库，`github.repository` 是一个默认环境变量
+          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+          # 上游（原项目）的仓库地址
+          # 将 'original-owner/original-repo' 替换为实际的上游仓库
+          upstream_repo: 'CassiopeiaCode/TenCyclesofFate'
+          # 要同步的分支
+          branch: 'main'
+          # 同步策略，可以是 merge 或 rebase，默认为 merge
+          sync_method: 'merge'
+          # Git 用户名和邮箱
+          git_user_name: 'github-actions[bot]'
+          git_user_email: 'github-actions[bot]@users.noreply.github.com'
+
+      # 第三步（可选）：检查同步结果
+      - name: Check Sync Status
+        if: steps.sync.outputs.has_new_commits == 'true'
+        run: echo "Successfully synced new commits from the upstream repository."
+      - name: No New Commits
+        if: steps.sync.outputs.has_new_commits == 'false'
+        run: echo "No new commits to sync from the upstream repository."
+
