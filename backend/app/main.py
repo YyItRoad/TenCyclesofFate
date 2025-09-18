@@ -17,7 +17,7 @@ from pydantic import BaseModel
 class GuestLoginRequest(BaseModel):
     guest_id: str
 
-from . import auth, game_logic, state_manager, security
+from . import auth, game_logic, state_manager, security, db
 from .websocket_manager import manager as websocket_manager
 from .live_system import live_manager
 from .config import settings
@@ -30,11 +30,10 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logging.info("Application startup...")
-    state_manager.load_from_json()
-    state_manager.start_auto_save_task()
+    db.initialize_db_pool() # Initialize the database connection pool
     yield
     logging.info("Application shutdown...")
-    state_manager.save_to_json()
+    # The pool will be implicitly closed when the application exits.
 
 # --- FastAPI App Instance ---
 app = FastAPI(lifespan=lifespan, title="浮生十梦")
@@ -50,15 +49,15 @@ root_router = APIRouter()
 
 
 # --- Authentication Routes ---
-@api_router.get('/login/linuxdo')
-async def login_linuxdo(request: Request):
-    """
-    Redirects the user to Linux.do for authentication.
-    """
-    # Use a hardcoded, absolute URL for the callback to avoid ambiguity
-    # This must match the URL registered in your Linux.do OAuth application settings.
-    redirect_uri = str(request.url.replace(path="/callback"))
-    return await auth.oauth.linuxdo.authorize_redirect(request, redirect_uri)
+# @api_router.get('/login/linuxdo')
+# async def login_linuxdo(request: Request):
+#     """
+#     Redirects the user to Linux.do for authentication.
+#     """
+#     # Use a hardcoded, absolute URL for the callback to avoid ambiguity
+#     # This must match the URL registered in your Linux.do OAuth application settings.
+#     redirect_uri = str(request.url.replace(path="/callback"))
+#     return await auth.oauth.linuxdo.authorize_redirect(request, redirect_uri)
 
 @api_router.post("/login/guest")
 async def login_guest(guest_request: GuestLoginRequest):
@@ -81,48 +80,48 @@ async def login_guest(guest_request: GuestLoginRequest):
     # Return the token in the response body, for the client to handle.
     return {"access_token": access_token}
 
-@root_router.get('/callback')
-async def auth_linuxdo_callback(request: Request):
-    """
-    Handles the callback from Linux.do after authentication.
-    This route is now at the root to match the expected OAuth callback URL.
-    Fetches user info, creates a JWT, and sets it in a cookie.
-    """
-    try:
-        token = await auth.oauth.linuxdo.authorize_access_token(request)
-    except Exception as e:
-        logger.error(f"Error during OAuth callback: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not authorize access token",
-        )
+# @root_router.get('/callback')
+# async def auth_linuxdo_callback(request: Request):
+#     """
+#     Handles the callback from Linux.do after authentication.
+#     This route is now at the root to match the expected OAuth callback URL.
+#     Fetches user info, creates a JWT, and sets it in a cookie.
+#     """
+#     try:
+#         token = await auth.oauth.linuxdo.authorize_access_token(request)
+#     except Exception as e:
+#         logger.error(f"Error during OAuth callback: {e}")
+#         raise HTTPException(
+#             status_code=status.HTTP_401_UNAUTHORIZED,
+#             detail="Could not authorize access token",
+#         )
 
-    resp = await auth.oauth.linuxdo.get('api/user', token=token)
-    resp.raise_for_status()
-    user_info = resp.json()
+#     resp = await auth.oauth.linuxdo.get('api/user', token=token)
+#     resp.raise_for_status()
+#     user_info = resp.json()
 
-    # Create JWT with user info from linux.do
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    jwt_payload = {
-        "sub": user_info.get("username"),
-        "id": user_info.get("id"),
-        "name": user_info.get("name"),
-        "trust_level": user_info.get("trust_level"),
-    }
-    access_token = auth.create_access_token(
-        data=jwt_payload, expires_delta=access_token_expires
-    )
+#     # Create JWT with user info from linux.do
+#     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+#     jwt_payload = {
+#         "sub": user_info.get("username"),
+#         "id": user_info.get("id"),
+#         "name": user_info.get("name"),
+#         "trust_level": user_info.get("trust_level"),
+#     }
+#     access_token = auth.create_access_token(
+#         data=jwt_payload, expires_delta=access_token_expires
+#     )
 
-    # Set token in cookie and redirect to frontend
-    response = RedirectResponse(url="/")
-    response.set_cookie(
-        "token",
-        value=access_token,
-        httponly=True,
-        max_age=int(access_token_expires.total_seconds()),
-        samesite="lax",
-    )
-    return response
+#     # Set token in cookie and redirect to frontend
+#     response = RedirectResponse(url="/")
+#     response.set_cookie(
+#         "token",
+#         value=access_token,
+#         httponly=True,
+#         max_age=int(access_token_expires.total_seconds()),
+#         samesite="lax",
+#     )
+#     return response
 
 @api_router.post("/logout")
 async def logout():
