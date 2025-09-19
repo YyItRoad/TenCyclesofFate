@@ -2,8 +2,8 @@
 set -e
 
 # Wait for the external database to be ready
-echo "Waiting for external MySQL at host.docker.internal:3308..."
-while ! nc -z host.docker.internal 3308; do
+echo "Waiting for external MySQL at host.docker.internal:3306..."
+while ! nc -z host.docker.internal 3306; do
   sleep 1
 done
 echo "MySQL is up."

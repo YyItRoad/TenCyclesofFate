@@ -66,6 +66,21 @@ def initialize_database():
             cursor.execute(create_table_query)
             conn.commit()
             logger.info("Table 'game_sessions' created or already exists.")
+
+            create_redemptions_table_query = """
+            CREATE TABLE IF NOT EXISTS redemptions (
+                `key` VARCHAR(255) PRIMARY KEY,
+                user_id VARCHAR(255),
+                status INT,
+                name VARCHAR(255),
+                quota INT,
+                created_time INT
+            );
+            """
+            logger.info("Executing CREATE TABLE statement for redemptions...")
+            cursor.execute(create_redemptions_table_query)
+            conn.commit()
+            logger.info("Table 'redemptions' created or already exists.")
         else:
             logger.error("Could not establish database connection after multiple retries. Aborting initialization.")
 

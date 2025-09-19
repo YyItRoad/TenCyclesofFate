@@ -9,3 +9,7 @@ services:
       - "4568:4568"
     env_file:
       - backend/.env
+    volumes:
+      - ./backend/.env:/app/backend/.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
